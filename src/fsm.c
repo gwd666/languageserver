@@ -6,12 +6,17 @@ typedef struct {
     int double_quoted;
     int backticked;
     int escaped;
+    int raw_parse_state;  // 1: R/r; 2: "/'; 3: (
+    int raw_dashes;       // number of dashes in raw string
+    int raw_dashes_temp;  // used to store number of dashes temporarily while parsing
+    char raw_string_token;
+    int raw_string;
 } fsm_state;
 */
 
 
 void fsm_initialize(fsm_state* s) {
-    *s = (fsm_state){0, 0, 0, 0, 0, 0, 0, 0};
+    *s = (fsm_state){0, 0, 0, 0, 0, 0, 0, 0, 0};
 }
 
 
@@ -34,9 +39,10 @@ void fsm_feed(fsm_state* state, const char c) {
                 state->single_quoted = 0;
             }
         } else if (state->raw_parse_state == 2) {
-            if (c == '(') {
+            if (c == '(' || c == '[' || c == '{') {
                 state->raw_parse_state = 3;
                 state->raw_dashes = state->raw_dashes_temp;
+                state->raw_string_token = c;
                 state->raw_string = 1;
             } else if (c == '-') {
                 state->raw_dashes_temp++;
@@ -49,7 +55,11 @@ void fsm_feed(fsm_state* state, const char c) {
         }
     } else {
         if (state->raw_parse_state == 3) {
-            if (c == ')') {
+            if (state->raw_string_token == '(' && c == ')') {
+                state->raw_parse_state = 2;
+            } else if (state->raw_string_token == '[' && c == ']') {
+                state->raw_parse_state = 2;
+            } else if (state->raw_string_token == '{' && c == '}') {
                 state->raw_parse_state = 2;
             } else {
                 // in raw string
